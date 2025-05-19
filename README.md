@@ -5,7 +5,7 @@
 * Clone this repo:
 ```bash
 git clone https://github.com/kzGarifullin/ligand_protein_system_preparation.git
-cd MaterialFusion
+cd ligand_protein_system_preparation
 ```
 
 * Setup the pymol environment. Conda environment `pymol_env` will be created and you can use it.
