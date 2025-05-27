@@ -1,8 +1,109 @@
+from collections import defaultdict
+import copy
+import os
+import warnings
+
+import numpy as np
+import torch
+from Bio.PDB import PDBParser
+from Bio.PDB.PDBExceptions import PDBConstructionWarning
+from rdkit import Chem
+from rdkit.Chem.rdchem import BondType as BT
+from rdkit.Chem import AllChem, GetPeriodicTable, RemoveHs
+from rdkit import Chem, RDLogger
+from rdkit.Chem import AllChem, rdMolTransforms
+from rdkit.Geometry import Point3D
+from scipy import spatial
+
+import torch.nn.functional as F
+import networkx as nx
+biopython_parser = PDBParser()
 
 
+def parse_receptor(pdbid, pdbbind_dir):
+    rec = parsePDB(pdbid, pdbbind_dir)
+    return rec
+
+def parsePDB(pdbid, pdbbind_dir):
+    rec_path = os.path.join(pdbbind_dir, f'{pdbid}_protein.pdb')
+    return parse_pdb_from_path(rec_path)
 
 
+def parse_pdb_from_path(path):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=PDBConstructionWarning)
+        structure = biopython_parser.get_structure('random_id', path)
+        rec = structure[0]
+    return rec
 
+
+def read_molecule(molecule_file, sanitize=False, calc_charges=False, remove_hs=False):
+    """
+    Read a molecular structure from a file and optionally process it.
+
+    This function reads a molecular structure from various file formats and provides options to sanitize the molecule,
+    calculate Gasteiger charges, and remove hydrogen atoms.
+
+    Parameters:
+    molecule_file (str): Path to the molecular structure file. Supported formats are .mol2, .sdf, .pdbqt, and .pdb.
+    sanitize (bool): If True, sanitize the molecule (default: False).
+    calc_charges (bool): If True, calculate Gasteiger charges for the molecule (default: False).
+    remove_hs (bool): If True, remove hydrogen atoms from the molecule (default: False).
+
+    Returns:
+    RDKit.Chem.Mol or None: The RDKit molecule object if the molecule is successfully read and processed, None otherwise.
+
+    Raises:
+    ValueError: If the file format is not supported.
+
+    Notes:
+    - Sanitization ensures the molecule's valence states are correct and that the structure is reasonable.
+    - Gasteiger charges are partial charges used for computational chemistry methods.
+    - Removing hydrogen atoms can be useful for simplifying the molecule, though it may lose information.
+
+    Example:
+    >>> from rdkit import Chem
+    >>> mol = read_molecule('molecule.mol2', sanitize=True, calc_charges=True, remove_hs=True)
+    >>> if mol:
+    >>>     print(Chem.MolToSmiles(mol))
+    """
+    if molecule_file.endswith('.mol2'):
+        mol = Chem.MolFromMol2File(molecule_file, sanitize=False, removeHs=False)
+    elif molecule_file.endswith('.sdf'):
+        supplier = Chem.SDMolSupplier(molecule_file, sanitize=False, removeHs=False)
+        mol = supplier[0]
+    elif molecule_file.endswith('.pdbqt'):
+        with open(molecule_file) as file:
+            pdbqt_data = file.readlines()
+        pdb_block = ''
+        for line in pdbqt_data:
+            pdb_block += '{}\n'.format(line[:66])
+        mol = Chem.MolFromPDBBlock(pdb_block, sanitize=False, removeHs=False)
+    elif molecule_file.endswith('.pdb'):
+        mol = Chem.MolFromPDBFile(molecule_file, sanitize=False, removeHs=False)
+    else:
+        raise ValueError('Expect the format of the molecule_file to be '
+                         'one of .mol2, .sdf, .pdbqt and .pdb, got {}'.format(molecule_file))
+
+    try:
+        if sanitize or calc_charges:
+            Chem.SanitizeMol(mol)
+
+        if calc_charges:
+            # Compute Gasteiger charges on the molecule.
+            try:
+                AllChem.ComputeGasteigerCharges(mol)
+            except:
+                warnings.warn('Unable to compute charges for the molecule.')
+
+        if remove_hs:
+            mol = Chem.RemoveHs(mol, sanitize=sanitize)
+    except Exception as e:
+        print(e)
+        print("RDKit was unable to read the molecule.")
+        return None
+
+    return mol
 
 def extract_receptor_structure_prody(rec, lig):
     """
@@ -94,38 +195,38 @@ def extract_receptor_structure_prody(rec, lig):
     return c_alpha_coords, lm_embeddings, sequences, chain_lengths, full_coords, valid_chain_names
 
 
+# complex_names_all read from  /mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt
 
 
+file_name = '/mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt'
+complex_names_all = []
+with open(file_name, 'r') as file:
+    for line in file:
+        stripped_line = line.strip()
+        complex_names_all.append(stripped_line)
 
 
 protein_to_complex_names = defaultdict(list)
 for name in complex_names_all:
     protein_to_complex_names[name.split('_superlig')[0]].append(name)
 
-
-
+print(protein_to_complex_names['6t4c_1'])
+print(protein_to_complex_names['4fch_1'])
 
 
 for protein_name, protein_complex_names in protein_to_complex_names.items():
+    print("protein_name:", protein_name)
+    print("protein_to_complex_names:", protein_complex_names)
 
-    rec_model = parse_receptor(complex_names[0], self.data_dir, self.dataset_type)
-
+    rec_model = parse_receptor(protein_name, "/mnt/ligandpro/data/BindingMOAD_2020_processed/pdb_protein")
+                #parse_receptor(pdbid, pdbbind_dir)
+    print("rec_model:", rec_model)
     for name in protein_complex_names:
         
         print('complex', name)
 
-        if self.dataset_type == 'pdbbind' or self.dataset_type == 'lpce':
-            ligs = read_mols(self.data_dir, name, remove_hs=False)
-        elif self.dataset_type == 'moad':
-            ligs = [read_molecule(os.path.join(self.data_dir, 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
-        elif self.dataset_type == 'dockgen' or self.dataset_type == 'dockgen_full':
-            ligs = [read_molecule(os.path.join(self.data_dir, name, f'{name}_ligand.pdb'), remove_hs=False, sanitize=True)]
-        elif self.dataset_type == 'astex' or self.dataset_type == 'posebusters':
-            ligs = [read_molecule(os.path.join(self.data_dir, name, f'{name}_ligand.sdf'), remove_hs=False, sanitize=True)]
-        elif self.dataset_type == 'astex_conf' or self.dataset_type == 'posebusters_conf':
-            ligs = [read_molecule(os.path.join(self.data_dir, name, f'{name}_ligand_start_conf.sdf'), remove_hs=False, sanitize=True)]
-        else:
-            raise ValueError(f'Unknown dataset type: {self.dataset_type}')
+        ligs = [read_molecule(os.path.join('/mnt/ligandpro/data/BindingMOAD_2020_processed/', 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
+
 
         ligs = [split_molecule(lig_mol, min_lig_size=7) for lig_mol in ligs]
         ligs = [lig_mol for lig_mol_list in ligs for lig_mol in lig_mol_list if lig_mol is not None]
@@ -140,14 +241,15 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
                         copy.deepcopy(rec_model), lig_mol)
                 
 
-            
+            except:
+                print("1")
                 
             # TODO extract chains valid_chain_names and save to pdb
             # lig_mol to sdf
 
-            final_name = f'{name}_mol{lig_idx}'
-
-            smiles = names2smiles[final_name]
-            frcmod_name = smiles2name[smiles][0]
+            #final_name = f'{name}_mol{lig_idx}'
+   
+            # smiles = names2smiles[final_name]
+            # frcmod_name = smiles2name[smiles][0]
             
 
