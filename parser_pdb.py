@@ -2,7 +2,7 @@ from collections import defaultdict
 import copy
 import os
 import warnings
-
+from prody import writePDB
 import numpy as np
 import torch
 from Bio.PDB import PDBParser
@@ -14,10 +14,40 @@ from rdkit import Chem, RDLogger
 from rdkit.Chem import AllChem, rdMolTransforms
 from rdkit.Geometry import Point3D
 from scipy import spatial
-
+from Bio.PDB import PDBIO
 import torch.nn.functional as F
 import networkx as nx
 import prody
+
+atom_order = {'G': ['N', 'CA', 'C', 'O'],
+'A': ['N', 'CA', 'C', 'O', 'CB'],
+'S': ['N', 'CA', 'C', 'O', 'CB', 'OG'],
+'C': ['N', 'CA', 'C', 'O', 'CB', 'SG'],
+'T': ['N', 'CA', 'C', 'O', 'CB', 'OG1', 'CG2'],
+'P': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD'],
+'V': ['N', 'CA', 'C', 'O', 'CB', 'CG1', 'CG2'],
+'M': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'SD', 'CE'],
+'N': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'OD1', 'ND2'],
+'I': ['N', 'CA', 'C', 'O', 'CB', 'CG1', 'CG2', 'CD1'],
+'L': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD1', 'CD2'],
+'D': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'OD1', 'OD2'],
+'E': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD', 'OE1', 'OE2'],
+'K': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD', 'CE', 'NZ'],
+'Q': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD', 'OE1', 'NE2'],
+'H': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'ND1', 'CD2', 'CE1', 'NE2'],
+'F': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ'],
+'R': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD', 'NE', 'CZ', 'NH1', 'NH2'],
+'Y': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ', 'OH'],
+'W': ['N', 'CA', 'C', 'O', 'CB', 'CG', 'CD1', 'CD2', 'CE2', 'CE3', 'NE1', 'CZ2', 'CZ3', 'CH2'],
+'X': ['N', 'CA', 'C', 'O']}     # unknown amino acid
+
+aa_short2long = {'C': 'CYS', 'D': 'ASP', 'S': 'SER', 'Q': 'GLN', 'K': 'LYS', 'I': 'ILE',
+                 'P': 'PRO', 'T': 'THR', 'F': 'PHE', 'N': 'ASN', 'G': 'GLY', 'H': 'HIS',
+                 'L': 'LEU', 'R': 'ARG', 'W': 'TRP', 'A': 'ALA', 'V': 'VAL', 'E': 'GLU',
+                 'Y': 'TYR', 'M': 'MET'}
+
+aa_long2short = {aa_long: aa_short for aa_short, aa_long in aa_short2long.items()}
+aa_long2short['MSE'] = 'M'
 
 def mol_to_graph(mol):
     # Initialize graph
@@ -134,6 +164,20 @@ def read_molecule(molecule_file, sanitize=False, calc_charges=False, remove_hs=F
 
     return mol
 
+def get_coords(prody_pdb):
+    resindices = sorted(set(prody_pdb.ca.getResindices()))
+    coords = np.full((len(resindices), 14, 3), np.nan)
+    for i, resind in enumerate(resindices):
+        sel = prody_pdb.select(f'resindex {resind}')
+        resname = sel.getResnames()[0]
+        for j, name in enumerate(atom_order[aa_long2short[resname] if resname in aa_long2short else 'X']):
+            sel_resnum_name = sel.select(f'name {name}')
+            if sel_resnum_name is not None:
+                coords[i, j, :] = sel_resnum_name.getCoords()[0]
+            else:
+                coords[i, j, :] = [np.nan, np.nan, np.nan]
+    return coords
+
 def extract_receptor_structure_prody(rec, lig):
     """
     Extract and process the structure of a receptor in the context of its interaction with a ligand.
@@ -161,21 +205,22 @@ def extract_receptor_structure_prody(rec, lig):
         lig_coords = conf.GetPositions()
     seq = rec.ca.getSequence()
     coords = get_coords(rec)
-
-    res_chain_ids = rec.ca.getChids()
-    res_seg_ids = rec.ca.getSegnames()
+    
+    res_chain_ids = rec.ca.getChids()  # Returns chain identifier
+    res_seg_ids = rec.ca.getSegnames()   # Return a copy of segment names. Segment names can be used in atom selections, e.g. 'segment PROT', 'segname PROT'. Note that segname is a synonym for segment.
     res_chain_ids = np.asarray([s + c for s, c in zip(res_seg_ids, res_chain_ids)])
+    print("res_chain_ids:",res_chain_ids)
     chain_ids = np.unique(res_chain_ids)
     seq = np.array([s for s in seq])
 
-    sequences = []
+    
     valid_chain_names = []
-    lm_embeddings = []
     c_alpha_coords = []
     full_coords = []
     min_distances_to_lig = []
     chain_distances = {}
     for i, chain_id in enumerate(chain_ids):
+        print(chain_id)
         chain_mask = res_chain_ids == chain_id
         chain_coords = coords[chain_mask]
         nonempty_coords = chain_coords.reshape(-1, 3)
@@ -189,8 +234,6 @@ def extract_receptor_structure_prody(rec, lig):
             chain_distances[chain_id] = min_dist_to_lig
 
         if min_dist_to_lig < 4.5:
-            sequences.append(tokenized_seq)
-            lm_embeddings.append(embeddings)
             valid_chain_names.append(chain_id)
             c_alpha_coords.append(chain_coords[:, 1].astype(np.float32))
             full_coords.append(nonempty_coords)
@@ -202,11 +245,8 @@ def extract_receptor_structure_prody(rec, lig):
         print(chain_distances)
         return None, None, None, None, None
 
-    chain_lengths = [len(seq) for seq in sequences]
     c_alpha_coords = np.concatenate(c_alpha_coords, axis=0)  # [n_residues, 3]
     full_coords = np.concatenate(full_coords, axis=0) # [n_protein_atoms, 3]
-    lm_embeddings = np.concatenate(lm_embeddings, axis=0)
-    sequences = np.concatenate(sequences, axis=0)
 
     if lig is not None:
         min_distances_to_lig = np.stack(min_distances_to_lig)
@@ -221,11 +261,36 @@ def extract_receptor_structure_prody(rec, lig):
             print(f'Ligand is not buried (fraction_buried = {fraction_buried})')
             return None, None, None, None, None
 
-    return c_alpha_coords, lm_embeddings, sequences, chain_lengths, full_coords, valid_chain_names
+    print("valid_chains", valid_chain_names)
 
+    l1_list = []
+    l2_list = []
+    for chain_id in valid_chain_names:
+        l1 = chain_id[0]  #seg
+        l2 = chain_id[1]  #chain
+        l1_list.append(l1)
+        l2_list.append(l2)
+    print("l1_list",l1_list)
+    print("l2_list",l2_list)
+    conditions = []
+    for i in range(len(l1_list)):
+        l1 = l1_list[i]
+        l2 = l2_list[i]
+        conditions.append(f"(segment {l1} and chain {l2})")
 
-# complex_names_all read from  /mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt
+    final_condition = ' or '.join(conditions) # Объединяем условия в одно большое условие, используя 'or'
+    print("Final condition for selection:", final_condition)
+    new_structure = rec.select(final_condition) # Выбор атомов на основе собранного условия
 
+    if new_structure is not None and new_structure.getCoords().size > 0:
+        print(f"Selected {len(new_structure)} atoms based on the final condition.")
+        writePDB("output.pdb", new_structure)  # Сохраняем выбранные атомы в файл
+    else:
+        print("No atoms found based on the final condition.")
+
+    # Saving the new structure to file
+    writePDB("out.pdb", new_structure)  # Save the entire receptor structure
+    return c_alpha_coords, full_coords, valid_chain_names
 
 file_name = '/mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt'
 complex_names_all = []
@@ -267,8 +332,9 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
                 continue
 
             #try:
-            c_alpha_coords_list, lm_embeddings_list, sequences_list, chain_lengths, full_coords, valid_chain_names = extract_receptor_structure_prody(
+            c_alpha_coords_list, full_coords, valid_chain_names = extract_receptor_structure_prody(
                     copy.deepcopy(rec_model), lig_mol)
+            print("valid_chain_names", valid_chain_names)
                 
             # except Exception as e:
             #     print(f"An unexpected error occurred: {e}")
@@ -280,5 +346,6 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
    
             # smiles = names2smiles[final_name]
             # frcmod_name = smiles2name[smiles][0]
+            #print(a.shape)
             
 
