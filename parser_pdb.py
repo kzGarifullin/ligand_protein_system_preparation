@@ -17,8 +17,40 @@ from scipy import spatial
 
 import torch.nn.functional as F
 import networkx as nx
-biopython_parser = PDBParser()
+import prody
 
+def mol_to_graph(mol):
+    # Initialize graph
+    G = nx.Graph()
+    for i, atom in enumerate(mol.GetAtoms()):
+        G.add_node(i)
+    for bond in mol.GetBonds():
+        start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        G.add_edge(start, end)
+    return G
+
+def split_molecule(mol, min_lig_size=7):
+    G = mol_to_graph(mol)
+
+    molecule_parts = []
+    for atom_indices in nx.connected_components(G):
+
+        # take the connected component
+        atoms_to_remove = list(set(G.nodes) - set(atom_indices))
+        atoms_to_remove.sort(reverse=True)
+
+        em1 = Chem.EditableMol(copy.deepcopy(mol))
+        for atom in atoms_to_remove:
+            em1.RemoveAtom(atom)
+            
+        mol_part = em1.GetMol()
+        try:
+            Chem.SanitizeMol(mol_part)
+        except:
+            print('mol_part sanitization failed')
+        if mol_part.GetNumAtoms() >= min_lig_size:
+            molecule_parts.append(mol_part)
+    return molecule_parts
 
 def parse_receptor(pdbid, pdbbind_dir):
     rec = parsePDB(pdbid, pdbbind_dir)
@@ -26,16 +58,13 @@ def parse_receptor(pdbid, pdbbind_dir):
 
 def parsePDB(pdbid, pdbbind_dir):
     rec_path = os.path.join(pdbbind_dir, f'{pdbid}_protein.pdb')
+    #rec_path = os.path.join(pdbbind_dir, 'pdb_protein', f'{pdbid.split("_superlig")[0]}_protein.pdb')
     return parse_pdb_from_path(rec_path)
 
 
 def parse_pdb_from_path(path):
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=PDBConstructionWarning)
-        structure = biopython_parser.get_structure('random_id', path)
-        rec = structure[0]
-    return rec
-
+    pdb = prody.parsePDB(path)
+    return pdb
 
 def read_molecule(molecule_file, sanitize=False, calc_charges=False, remove_hs=False):
     """
@@ -225,24 +254,24 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
         
         print('complex', name)
 
-        ligs = [read_molecule(os.path.join('/mnt/ligandpro/data/BindingMOAD_2020_processed/', 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
+        ligs = [read_molecule(os.path.join('/mnt/ligandpro/data/BindingMOAD_2020_processed', 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
 
 
         ligs = [split_molecule(lig_mol, min_lig_size=7) for lig_mol in ligs]
         ligs = [lig_mol for lig_mol_list in ligs for lig_mol in lig_mol_list if lig_mol is not None]
-
+        print(ligs)
+        max_lig_size = 200
         for lig_idx, lig_mol in enumerate(ligs):
-            if self.max_lig_size is not None and lig_mol.GetNumHeavyAtoms() > self.max_lig_size:
+            if max_lig_size is not None and lig_mol.GetNumHeavyAtoms() > max_lig_size:
                 print(f'Ligand with {lig_mol.GetNumHeavyAtoms()} heavy atoms is larger than max_lig_size {self.max_lig_size}. Not including {name} in preprocessed data.')
                 continue
 
-            try:
-                c_alpha_coords_list, lm_embeddings_list, sequences_list, chain_lengths, full_coords, valid_chain_names = extract_receptor_structure_prody(
-                        copy.deepcopy(rec_model), lig_mol)
+            #try:
+            c_alpha_coords_list, lm_embeddings_list, sequences_list, chain_lengths, full_coords, valid_chain_names = extract_receptor_structure_prody(
+                    copy.deepcopy(rec_model), lig_mol)
                 
-
-            except:
-                print("1")
+            # except Exception as e:
+            #     print(f"An unexpected error occurred: {e}")
                 
             # TODO extract chains valid_chain_names and save to pdb
             # lig_mol to sdf
