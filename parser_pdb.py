@@ -178,7 +178,7 @@ def get_coords(prody_pdb):
                 coords[i, j, :] = [np.nan, np.nan, np.nan]
     return coords
 
-def extract_receptor_structure_prody(rec, lig):
+def extract_receptor_structure_prody(rec, lig, prot_name):
     """
     Extract and process the structure of a receptor in the context of its interaction with a ligand.
 
@@ -189,16 +189,16 @@ def extract_receptor_structure_prody(rec, lig):
     Parameters:
     rec (Bio.PDB.Structure.Structure): The receptor structure, typically a Bio.PDB structure object.
     lig (rdkit.Chem.Mol): The ligand molecule, typically an RDKit molecule object.
-    lm_embedding_chains (list of np.ndarray, optional): Optional embeddings for each chain from a language model.
-        If provided, it should have the same number of chains as the receptor structure.
 
     Returns:
     tuple:
-        - rec (Bio.PDB.Structure.Structure): The modified receptor structure with invalid chains removed.
+    c_alpha_coords
+        - new_structure (Bio.PDB.Structure.Structure): The modified receptor structure with invalid chains removed.
         - c_alpha_coords (np.ndarray): A numpy array of shape (n_residues, 3) containing the C-alpha atom coordinates of
           valid residues.
-        - lm_embeddings (np.ndarray or None): A concatenated numpy array of the valid language model embeddings for the chains,
-          if lm_embedding_chains is provided. Otherwise, None.
+        - full_coords 
+        - valid_chain_names
+
     """
     if lig is not None:
         conf = lig.GetConformer()
@@ -284,13 +284,11 @@ def extract_receptor_structure_prody(rec, lig):
 
     if new_structure is not None and new_structure.getCoords().size > 0:
         print(f"Selected {len(new_structure)} atoms based on the final condition.")
-        writePDB("output.pdb", new_structure)  # Сохраняем выбранные атомы в файл
+        writePDB("closest_chains_" + prot_name + ".pdb", new_structure)  # Сохраняем выбранные атомы в файл
     else:
         print("No atoms found based on the final condition.")
 
-    # Saving the new structure to file
-    writePDB("out.pdb", new_structure)  # Save the entire receptor structure
-    return c_alpha_coords, full_coords, valid_chain_names
+    return new_structure, c_alpha_coords, full_coords, valid_chain_names
 
 file_name = '/mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt'
 complex_names_all = []
@@ -332,8 +330,8 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
                 continue
 
             #try:
-            c_alpha_coords_list, full_coords, valid_chain_names = extract_receptor_structure_prody(
-                    copy.deepcopy(rec_model), lig_mol)
+            new_structure, c_alpha_coords_list, full_coords, valid_chain_names = extract_receptor_structure_prody(
+                    copy.deepcopy(rec_model), lig_mol, name)
             print("valid_chain_names", valid_chain_names)
                 
             # except Exception as e:
