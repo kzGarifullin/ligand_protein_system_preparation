@@ -290,6 +290,8 @@ def extract_receptor_structure_prody(rec, lig, prot_name):
 
     return new_structure, c_alpha_coords, full_coords, valid_chain_names
 
+
+max_lig_size = 200    # ???
 file_name = '/mnt/ligandpro/data/dfrolova/flowdock_data/data/splits/MOAD_PDBBind.txt'
 complex_names_all = []
 with open(file_name, 'r') as file:
@@ -323,7 +325,6 @@ for protein_name, protein_complex_names in protein_to_complex_names.items():
         ligs = [split_molecule(lig_mol, min_lig_size=7) for lig_mol in ligs]
         ligs = [lig_mol for lig_mol_list in ligs for lig_mol in lig_mol_list if lig_mol is not None]
         print(ligs)
-        max_lig_size = 200
         for lig_idx, lig_mol in enumerate(ligs):
             if max_lig_size is not None and lig_mol.GetNumHeavyAtoms() > max_lig_size:
                 print(f'Ligand with {lig_mol.GetNumHeavyAtoms()} heavy atoms is larger than max_lig_size {self.max_lig_size}. Not including {name} in preprocessed data.')

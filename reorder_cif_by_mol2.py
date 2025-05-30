@@ -17,6 +17,34 @@ def parse_mol2_atoms(mol2_path):
                     continue
                 x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
                 atoms.append((x, y, z))
+    print(atoms)
+    return atoms
+
+def parse_sdf_atoms(sdf_path):
+    atoms = []
+    with open(sdf_path) as f:
+        in_atom_section = False
+        for line in f:
+            # Check for start of the atom section (first line of the atom block starts with 'V2000')
+            #print(line)
+            line_strip = line.split()
+            if line_strip != [] and line_strip[-1] == "V2000":
+                in_atom_section = True
+                continue
+            # Check for end of the atom section (first line of the bond block)
+            if in_atom_section and line_strip[3].isdigit():
+                in_atom_section = False
+                continue
+            # Process lines in the atom section
+            if in_atom_section:
+                parts = line.split()
+                # Ensure the line is valid and contains the necessary coordinates
+                if len(parts) < 4:
+                    continue
+                # Extract x, y, z coordinates
+                x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
+                atoms.append((x, y, z))
+    print(atoms)
     return atoms
 
 def parse_cif_atoms_and_header(cif_path):
@@ -60,10 +88,10 @@ def main():
     args = parser.parse_args()
     print(args.mol2_path)
 
-    TOL = 0.01  # допуск по координатам
-    print(TOL)
+    TOL = 1  # допуск по координатам
+    print("TOL:", TOL)
     # 1. Получаем координаты атомов из mol2
-    mol2_atoms = parse_mol2_atoms(args.mol2_path)
+    mol2_atoms = parse_sdf_atoms(args.mol2_path)
 
     # 2. Получаем атомы и header из CIF
     cif_header, cif_atoms, cif_footer = parse_cif_atoms_and_header(args.cif_path)
