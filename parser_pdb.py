@@ -284,7 +284,7 @@ def extract_receptor_structure_prody(rec, lig, prot_name):
 
     if new_structure is not None and new_structure.getCoords().size > 0:
         print(f"Selected {len(new_structure)} atoms based on the final condition.")
-        writePDB("closest_chains_" + prot_name + ".pdb", new_structure)  # Сохраняем выбранные атомы в файл
+        writePDB("closest_chains_pdbs/" + prot_name + ".pdb", new_structure)  # Сохраняем выбранные атомы в файл
     else:
         print("No atoms found based on the final condition.")
 
