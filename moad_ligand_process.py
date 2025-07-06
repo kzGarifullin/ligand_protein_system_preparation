@@ -10,12 +10,16 @@ with open(filepath, 'rb') as f:
     complexes = pickle.load(f)
 print(f"Data successfully loaded from {filepath}!")
 print("len(complexes)", len(complexes))
+count = 0
 for i in range(len(complexes)):
+    print(complexes[i].name)
     ligand = complexes[i].ligand.orig_mol
     print(ligand.GetNumAtoms())
-    print(complexes[i].ligand.pos)
-    mol2_file_path = 'output.sdf'
+    #print(complexes[i].ligand.pos)
+    mol2_file_path = 'sdf_mols/'+complexes[i].name+'.sdf'
     w = Chem.SDWriter(mol2_file_path)  
     w.write(ligand)
     w.close()
-    break
+    count+=1
+    if count==3:
+        break
