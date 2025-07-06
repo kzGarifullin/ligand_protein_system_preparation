@@ -21,5 +21,5 @@ for i in range(len(complexes)):
     w.write(ligand)
     w.close()
     count+=1
-    if count==3:
-        break
+    # if count==3:
+    #     break
