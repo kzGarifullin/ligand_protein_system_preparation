@@ -209,7 +209,7 @@ def extract_receptor_structure_prody(rec, lig, prot_name):
     res_chain_ids = rec.ca.getChids()  # Returns chain identifier
     res_seg_ids = rec.ca.getSegnames()   # Return a copy of segment names. Segment names can be used in atom selections, e.g. 'segment PROT', 'segname PROT'. Note that segname is a synonym for segment.
     res_chain_ids = np.asarray([s + c for s, c in zip(res_seg_ids, res_chain_ids)])
-    print("res_chain_ids:",res_chain_ids)
+    #print("res_chain_ids:",res_chain_ids)
     chain_ids = np.unique(res_chain_ids)
     seq = np.array([s for s in seq])
 
@@ -270,8 +270,8 @@ def extract_receptor_structure_prody(rec, lig, prot_name):
         l2 = chain_id[1]  #chain
         l1_list.append(l1)
         l2_list.append(l2)
-    print("l1_list",l1_list)
-    print("l2_list",l2_list)
+    #print("l1_list",l1_list)
+    #print("l2_list",l2_list)
     conditions = []
     for i in range(len(l1_list)):
         l1 = l1_list[i]
@@ -279,11 +279,11 @@ def extract_receptor_structure_prody(rec, lig, prot_name):
         conditions.append(f"(segment {l1} and chain {l2})")
 
     final_condition = ' or '.join(conditions) # Объединяем условия в одно большое условие, используя 'or'
-    print("Final condition for selection:", final_condition)
+    #print("Final condition for selection:", final_condition)
     new_structure = rec.select(final_condition) # Выбор атомов на основе собранного условия
 
     if new_structure is not None and new_structure.getCoords().size > 0:
-        print(f"Selected {len(new_structure)} atoms based on the final condition.")
+        #print(f"Selected {len(new_structure)} atoms based on the final condition.")
         writePDB("closest_chains_pdbs/" + prot_name + ".pdb", new_structure)  # Сохраняем выбранные атомы в файл
     else:
         print("No atoms found based on the final condition.")
@@ -310,41 +310,44 @@ print(protein_to_complex_names['4fch_1'])
 
 for protein_name, protein_complex_names in protein_to_complex_names.items():
     print("protein_name:", protein_name)
-    print("protein_to_complex_names:", protein_complex_names)
+    #print("protein_to_complex_names:", protein_complex_names)
 
     rec_model = parse_receptor(protein_name, "/mnt/ligandpro/data/BindingMOAD_2020_processed/pdb_protein")
                 #parse_receptor(pdbid, pdbbind_dir)
-    print("rec_model:", rec_model)
+    #print("rec_model:", rec_model)
     for name in protein_complex_names:
         
         print('complex', name)
+        try:
+            ligs = [read_molecule(os.path.join('/mnt/ligandpro/data/BindingMOAD_2020_processed', 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
 
-        ligs = [read_molecule(os.path.join('/mnt/ligandpro/data/BindingMOAD_2020_processed', 'pdb_superligand', f'{name}.pdb'), remove_hs=False, sanitize=True)]
 
+            ligs = [split_molecule(lig_mol, min_lig_size=7) for lig_mol in ligs]
+            ligs = [lig_mol for lig_mol_list in ligs for lig_mol in lig_mol_list if lig_mol is not None]
+            #print(ligs)
+            for lig_idx, lig_mol in enumerate(ligs):
+                if max_lig_size is not None and lig_mol.GetNumHeavyAtoms() > max_lig_size:
+                    #print(f'Ligand with {lig_mol.GetNumHeavyAtoms()} heavy atoms is larger than max_lig_size {self.max_lig_size}. Not including {name} in preprocessed data.')
+                    continue
 
-        ligs = [split_molecule(lig_mol, min_lig_size=7) for lig_mol in ligs]
-        ligs = [lig_mol for lig_mol_list in ligs for lig_mol in lig_mol_list if lig_mol is not None]
-        print(ligs)
-        for lig_idx, lig_mol in enumerate(ligs):
-            if max_lig_size is not None and lig_mol.GetNumHeavyAtoms() > max_lig_size:
-                print(f'Ligand with {lig_mol.GetNumHeavyAtoms()} heavy atoms is larger than max_lig_size {self.max_lig_size}. Not including {name} in preprocessed data.')
-                continue
-
-            #try:
-            new_structure, c_alpha_coords_list, full_coords, valid_chain_names = extract_receptor_structure_prody(
-                    copy.deepcopy(rec_model), lig_mol, name)
-            print("valid_chain_names", valid_chain_names)
+                #try:
+                new_structure, c_alpha_coords_list, full_coords, valid_chain_names = extract_receptor_structure_prody(
+                        copy.deepcopy(rec_model), lig_mol, name)
                 
-            # except Exception as e:
-            #     print(f"An unexpected error occurred: {e}")
-                
-            # TODO extract chains valid_chain_names and save to pdb
-            # lig_mol to sdf
+                #print("valid_chain_names", valid_chain_names)
+                    
+                # except Exception as e:
+                #     print(f"An unexpected error occurred: {e}")
+                    
+                # TODO extract chains valid_chain_names and save to pdb
+                # lig_mol to sdf
 
-            #final_name = f'{name}_mol{lig_idx}'
-   
-            # smiles = names2smiles[final_name]
-            # frcmod_name = smiles2name[smiles][0]
-            #print(a.shape)
-            
+                #final_name = f'{name}_mol{lig_idx}'
+    
+                # smiles = names2smiles[final_name]
+                # frcmod_name = smiles2name[smiles][0]
+                #print(a.shape)
+        except Exception as e:
+            print(f"Exception: {e}")
+                
 
