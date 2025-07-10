@@ -25,10 +25,10 @@ with open(file_name, 'r') as file:
         complex_names_all.append(stripped_line)
 
 print(complex_names_all[:10])
-print(len(complex_names_all))
-print(len(complexes))
+print(len(complex_names_all))   #40772
+print(len(complexes))           #42713
 
-
+print(b.shape)
 # Iterate over each complex
 for i in range(len(complexes)):
     print(complexes[i].name)
