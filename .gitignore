@@ -1,3 +1,6 @@
 sdf_mols/
 closest_chains_pdbs/
 train/
+build_amber/
+sdf_mols_with_Hs/
+train_without_Hs/

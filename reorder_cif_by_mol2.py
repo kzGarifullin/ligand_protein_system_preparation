@@ -17,7 +17,7 @@ def parse_mol2_atoms(mol2_path):
                     continue
                 x, y, z = float(parts[2]), float(parts[3]), float(parts[4])
                 atoms.append((x, y, z))
-    print(atoms)
+    #print(atoms)
     return atoms
 
 def parse_sdf_atoms(sdf_path):
@@ -44,7 +44,7 @@ def parse_sdf_atoms(sdf_path):
                 # Extract x, y, z coordinates
                 x, y, z = float(parts[0]), float(parts[1]), float(parts[2])
                 atoms.append((x, y, z))
-    print(atoms)
+    #print(atoms)
     return atoms
 
 def parse_cif_atoms_and_header(cif_path):
@@ -86,10 +86,10 @@ def main():
     parser.add_argument('cif_path', help='Input CIF file path')
     parser.add_argument('output_cif_path', help='Output CIF file path')
     args = parser.parse_args()
-    print(args.mol2_path)
+    #print(args.mol2_path)
 
     TOL = 1  # допуск по координатам
-    print("TOL:", TOL)
+    #print("TOL:", TOL)
     # 1. Получаем координаты атомов из mol2
     mol2_atoms = parse_sdf_atoms(args.mol2_path)
 

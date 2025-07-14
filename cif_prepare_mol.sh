@@ -9,6 +9,6 @@ while IFS= read -r protein_name; do
     else
         echo "Warning: Folder for $protein_name not found in train"
     fi
-done < "PDBBind_train"
+done < "MOAD_train"
 
 echo "Copy operation completed!" 

@@ -88,7 +88,7 @@ def resname_parse(cif_file):
 
 if __name__ == "__main__":
     #protein = "6dz3"
-    input_file = "/mnt/ligandpro/data/garifullin/system_preparation_train/PDBBind_train"
+    input_file = "/mnt/ligandpro/data/garifullin/ligand_protein_system_preparation/MOAD_train"
     #input_file = "/mnt/ligandpro/data/garifullin/system_preparation/re_train.txt"
     translation_vectors_dict = {}
     trans_vector_error_protein_list = []
@@ -103,10 +103,13 @@ if __name__ == "__main__":
                 print(resname)
 
                 #print(a.shape)
-                protein_path = 'train/' + protein + '/' + protein + '_protein_processed.pdb'
+                #protein_path = 'train/' + protein + '/' + protein + '_protein_processed.pdb'
+                protein_path = 'train/' + protein + '/' + protein.split('_mol')[0] + '.pdb'
+                #print("protein_path:", protein_path)
                 ligand_folder = 'train/' + protein + '/'
                 build_system_outdir='build_amber/' + protein
                 structure_file='build_amber/' + protein + '/structure.pdb'
+                #print("structure_file:", structure_file)
                 try:
                     system_prepare(protein_path=protein_path, ligand_folder=ligand_folder, ligand_path=protein + '_ligand_final.cif', ligand_frcmod=protein+'_mol0_AC.frcmod', build_system_outdir=build_system_outdir, pH=7.4, resname=resname)
                     trans_vector, coord_error_flag = translation_vector(ligand_folder=ligand_folder, ligand_path=protein + '_ligand_final.cif', structure_file=structure_file, resname=resname)
@@ -119,6 +122,7 @@ if __name__ == "__main__":
                     print(f"Error processing {protein}: {e}")
                     error_protein_list.append(protein)
                 #break
+                #print(a.shape)
     print(translation_vectors_dict)
     translation_vectors_dict = {k: [float(x) for x in v] for k, v in translation_vectors_dict.items()}
 

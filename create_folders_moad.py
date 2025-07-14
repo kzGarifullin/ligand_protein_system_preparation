@@ -28,7 +28,7 @@ print(complex_names_all[:10])
 print(len(complex_names_all))   #40772
 print(len(complexes))           #42713
 
-print(b.shape)
+#print(b.shape)
 # Iterate over each complex
 for i in range(len(complexes)):
     print(complexes[i].name)
@@ -45,7 +45,7 @@ for i in range(len(complexes)):
     os.makedirs(directory_name, exist_ok=True)  # This creates the directory and does nothing if it already exists
     
     # Define the SDF file path
-    sdf_file_path = f'sdf_mols/{complexes[i].name}.sdf'
+    sdf_file_path = f'sdf_mols_with_Hs/{complexes[i].name}.sdf'
     pdb_file_path = f"closest_chains_pdbs/{complexes[i].name.split('_mol')[0]}.pdb"
     
     # Copy the SDF file to the new directory

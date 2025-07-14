@@ -15,10 +15,11 @@ for i in range(len(complexes)):
     print(complexes[i].name)
     ligand = complexes[i].ligand.orig_mol
     print(ligand.GetNumAtoms())
+    ligand_with_h = Chem.AddHs(ligand, addCoords = True)  # нужно добавить атомы водорода
     #print(complexes[i].ligand.pos)
-    mol2_file_path = 'sdf_mols/'+complexes[i].name+'.sdf'
+    mol2_file_path = 'sdf_mols_with_Hs/'+complexes[i].name+'.sdf'
     w = Chem.SDWriter(mol2_file_path)  
-    w.write(ligand)
+    w.write(ligand_with_h)
     w.close()
     count+=1
     # if count==3:
